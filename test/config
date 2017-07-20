@@ -1,0 +1,7 @@
+toplevel=foo
+
+[global]
+datadir=/home/lash/tmp/nana
+
+[dir some]
+someafter=bar

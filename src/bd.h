@@ -2,11 +2,15 @@
 #define BD_H_
 
 #include <stdint.h>
+#include <uuid/uuid.h>
+#include <basedir.h>
 
 #define BD_URL_MAXLENGTH 512
 #define BD_NAME_MAXLENGTH 256
 #define BD_DESCRIPTION_MAXLENGTH 4096
 #define BD_TAGS_MAXCOUNT 16
+#define BD_TAGS_CACHESIZE 1024
+#define BD_SERIALIZED_MAXLENGTH 2048
 
 /***
  * 
@@ -20,9 +24,10 @@ enum bd_storestate {
 	BD_SAVED
 };
 
+
 /***
  *
- * \short which database driver is currently being used
+ * \short identifiers for supported database drivers
  *
  */
 enum bd_db_type {
@@ -31,7 +36,7 @@ enum bd_db_type {
 
 /***
  *
- * \short identifiers for supported database drivers
+ * \short which database driver is currently being used
  *
  */
 enum bd_db_type g_bd_db_used;
@@ -52,24 +57,39 @@ typedef struct {
  *
  */
 typedef struct {
-	uint32_t id;
-	char* url;
-	char* name;
-	char* description;
-	bd_tag_t** tags;
+	uuid_t id;
+	char localpath[256];
+	char *url;
+	char *name;
+	char *description;
+	bd_tag_t **tags;
 	size_t tags_count;
 	enum bd_storestate storestate;
 } bd_bookmark_t;
 
+// global vars
+int g_bd_init;
+xdgHandle *g_bd_xdg;
+char *g_bd_datapath;
+
+bd_tag_t *g_bd_tag_cache;
+int g_bd_tag_cache_size;
+int g_bd_tag_cache_count;
+
 // public 
-bd_bookmark_t* bd_NewBookmark(bd_bookmark_t* bookmark);
-int bd_SetUrl(bd_bookmark_t* bookmark, char *url);
-int bd_SetName(bd_bookmark_t* bookmark, char *name);
-int bd_AddTag(bd_bookmark_t* bookmark, char *tag);
+void bd_Init(int tagcachesize);
+bd_bookmark_t* bd_NewBookmark(bd_bookmark_t *bookmark, char *path);
+int bd_SetUrl(bd_bookmark_t *bookmark, char *url);
+int bd_SetName(bd_bookmark_t *bookmark, char *name);
+int bd_AddTag(bd_bookmark_t *bookmark, char *tag);
+int bd_Save(bd_bookmark_t *bookmark);
 
 // private
+int bd_checkPath(char *path);
 int bd_initTags(bd_tag_t **tags);
+int bd_getTag(bd_tag_t *tag, char *content);
 int bd_cacheTag(bd_tag_t *tag, char *content);
+char *bd_serialize(bd_bookmark_t *bookmark, char *data);
 
 /***
  * \fn bd_bookmark_t* bd_NewBookmark(bd_bookmark_t* bookmark)

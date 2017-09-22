@@ -5,7 +5,9 @@
 #include <uuid/uuid.h>
 #include <basedir.h>
 
+#define BD_UUID_LENGTH 36
 #define BD_URL_MAXLENGTH 512
+#define BD_PATH_MAXLENGTH 256
 #define BD_NAME_MAXLENGTH 256
 #define BD_DESCRIPTION_MAXLENGTH 4096
 #define BD_TAGS_MAXCOUNT 16
@@ -39,7 +41,7 @@ enum bd_db_type {
  * \short which database driver is currently being used
  *
  */
-enum bd_db_type g_bd_db_used;
+enum bd_db_type g_bd_db_type;
 
 /***
  *
@@ -58,7 +60,7 @@ typedef struct {
  */
 typedef struct {
 	uuid_t id;
-	char localpath[256];
+	char local_path[BD_PATH_MAXLENGTH];
 	char *url;
 	char *name;
 	char *description;
@@ -78,6 +80,8 @@ int g_bd_tag_cache_count;
 
 // public 
 void bd_Init(int tagcachesize);
+void bd_Destroy();
+
 bd_bookmark_t* bd_NewBookmark(bd_bookmark_t *bookmark, char *path);
 int bd_SetUrl(bd_bookmark_t *bookmark, char *url);
 int bd_SetName(bd_bookmark_t *bookmark, char *name);

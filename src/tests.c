@@ -6,7 +6,7 @@
 
 #include "bd.h"
 #include "ini.h"
-#include "bdconfig.h"
+#include "config.h"
 
 #define TEST_URL "http://www.rotten.com"
 #define TEST_NAME "deadbeef"
@@ -33,6 +33,7 @@ int testCreateBookmark(bd_bookmark_t *bookmark) {
 		fprintf(stderr, "save fail: %s\n", strerror(errno));
 		return -1;
 	}
+	bd_Destroy();
 	return 0;
 }
 

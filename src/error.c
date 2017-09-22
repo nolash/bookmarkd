@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "bderror.h"
+#include "error.h"
 
 void bd_ErrInit() {
 	g_bd_lasterr_desc = malloc(sizeof(char) * BD_ERR_DESC_LENGTH);

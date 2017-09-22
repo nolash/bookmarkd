@@ -7,9 +7,9 @@
 #include <unistd.h> // getuid, getgid
 
 #include "bd.h"
-#include "bddb.h"
-#include "bderror.h"
-#include "bdconfig.h"
+#include "db.h"
+#include "error.h"
+#include "config.h"
 
 void bd_Init(int tagcachesize) {
 	g_bd_init = 0;
@@ -23,7 +23,9 @@ void bd_Init(int tagcachesize) {
 		fprintf(stderr, "malloc for tag cache fail: %s", strerror(errno));
 		return;
 	}
-
+	if (bd_DbConnect(NULL, NULL) < 0) {
+		fprintf(stderr, "failed to open db: %s", strerror(errno));
+	}
 	g_bd_init = 1;
 }
 
@@ -63,7 +65,7 @@ bd_bookmark_t* bd_NewBookmark(bd_bookmark_t* bookmark, char *path) {
 	if (bookmark->url == 0x0) {
 		return NULL;
 	}
-	strcpy(bookmark->localpath, path);
+	strcpy(bookmark->local_path, path);
 	bookmark->tags_count = 0;
 	bookmark->name = 0x0;
 	bookmark->description =0x0;
@@ -74,23 +76,21 @@ bd_bookmark_t* bd_NewBookmark(bd_bookmark_t* bookmark, char *path) {
 }
 
 /***
- * \todo add nesting
- * \todo rollback on failed write
+ * Saves the specified bookmark
  */
 int bd_Save(bd_bookmark_t *bookmark) {
 	FILE *f;
 	size_t c;
-	char filename[1024];
-	char *tmp;
 	char resultpath[1024];
 	char data[BD_SERIALIZED_MAXLENGTH];
+	char *tmp;
 	struct stat sbuf;
 
-	strcpy(filename, g_bd_config.datadir);
 	strcpy(resultpath, g_bd_config.datadir);
-	strcat(filename, bookmark->localpath);
-	tmp = bookmark->localpath;
+	tmp = malloc(sizeof(bookmark->local_path));
+	strcpy(tmp, bookmark->local_path);
 
+	// create path recursively if it doesnt exist
 	while ((tmp = strtok(tmp, "/")) != NULL) {
 		strcat(resultpath, tmp);
 		strcat(resultpath, "/");
@@ -101,9 +101,12 @@ int bd_Save(bd_bookmark_t *bookmark) {
 		}
 		tmp = NULL;
 	}
+	free(tmp);
 
+	// append new uuid
 	uuid_unparse_lower(bookmark->id, resultpath + strlen(resultpath));
-	
+
+	// write the serialized bookmark
 	bd_serialize(bookmark, data);
 
 	f = fopen(resultpath, "w");
@@ -114,27 +117,43 @@ int bd_Save(bd_bookmark_t *bookmark) {
 	c = fwrite(data, sizeof(char), strlen(data), f);
 	fclose(f);
 
+	// check if the write count matches the data
 	if (c < strlen(data)) {
 		remove(resultpath);
 		return -1;
 	}
-
+	bd_DbSaveBookmark(bookmark);
+	bookmark->storestate = BD_SAVED;
+	
 	return 0;
 }
 
-char *bd_serialize(bd_bookmark_t *bookmark, char *data) {
+/***
+ * format for file storage of bookmarks
+ * based on vcf format
+ *
+ * TODO: check overflow
+ */
+char* bd_serialize(bd_bookmark_t *bookmark, char *data) {
 	sprintf(data, "BEGIN:BOOKMARK\nURL:%s\nNAME:%s\nEND:BOOKMARK\n", bookmark->url, bookmark->name);
 	return data;
 }
 
+/*** 
+ * set the url field of a bookmark
+ */
 int bd_SetUrl(bd_bookmark_t *bookmark, char *url) {
 	bookmark->url = strcpy(bookmark->url, url);
 	if (bookmark->url == 0x0) {
 		return -1;	
 	}
+	bookmark->storestate = BD_MODIFIED;
 	return strlen(bookmark->url);
 }
 
+/***
+ * set the name field of a bookmark
+ */
 int bd_SetName(bd_bookmark_t *bookmark, char *name) {
 	if (bookmark->name == 0x0) {
 		bookmark->name = malloc(sizeof(char) * BD_NAME_MAXLENGTH);
@@ -146,9 +165,13 @@ int bd_SetName(bd_bookmark_t *bookmark, char *name) {
 	if (bookmark->name == 0x0) {
 		return -1;
 	}
+	bookmark->storestate = BD_MODIFIED;
 	return strlen(bookmark->name);
 }
 
+/***
+ * add a tag to a bookmark
+ */
 int bd_AddTag(bd_bookmark_t *bookmark, char *tag) {
 	if (bookmark->tags == 0x0) {
 		bd_tag_t **tags = 0x0;
@@ -162,6 +185,7 @@ int bd_AddTag(bd_bookmark_t *bookmark, char *tag) {
 	}
        	bd_cacheTag(*(bookmark->tags + bookmark->tags_count), tag);
 	bookmark->tags_count++;
+	bookmark->storestate = BD_MODIFIED;
 	return 0;
 }
 
@@ -185,4 +209,8 @@ int bd_getTag(bd_tag_t *tag, char *content) {
 
 int bd_cacheTag(bd_tag_t *tag, char *content) {
 	return 0;
+}
+
+void bd_Destroy() {
+	bd_DbFree();
 }
